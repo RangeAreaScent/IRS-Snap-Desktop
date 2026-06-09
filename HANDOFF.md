@@ -40,14 +40,17 @@
   - icon family regenerated from IRS Peach primary — `.icns` 123 KB + `.ico` 22 KB embedded
   - CI workflow staged at `.github/workflows/build.yml` (Windows-only matrix; macOS DMG built locally per ICD pattern)
 - **Active blockers:**
-  - GitHub repo not created (`IRS-Snap-Desktop`) — needed for tag-driven CI + draft release upload
+  - ~~GitHub repo not created (`IRS-Snap-Desktop`)~~ → **resolved 2026-06-09**: `https://github.com/RangeAreaScent/IRS-Snap-Desktop` live; `v1.0.0` tag pushed; `v1.1.0-beta` tag pushed (Phase A–D + Polish R1/R2/R3)
   - Apple Developer cert not acquired → Mac DMG unsigned (Gatekeeper "unverified developer" on other Macs)
   - Windows code-signing cert not acquired → SmartScreen warning on install
   - Lemon Squeezy product not created → license activation untested
   - `screencapture` permission missing — manual visual verification only
+- **Sister repos (2026-06-09):**
+  - iOS: `https://github.com/RangeAreaScent/IRS-Snap` — SwiftUI source + SQLite (228 files, v1.0)
+  - Plan: `https://github.com/RangeAreaScent/snap-series-plan` (private) — series specs, build guides, improvement plans
 - **Next 3 steps:**
   1. Smoke-test the universal DMG locally (HANDOFF §14): mount → drag-install → 199A search → § 199A detail → cross-link chip to § 162 → favorite → collection → PDF export
-  2. Create GitHub repo `IRS-Snap-Desktop` → push → trigger CI workflow with first `v1.0.0` tag
+  2. CI workflow now triggerable via `v1.1.0-beta` tag — check GitHub Actions run
   3. Decide Lemon Squeezy timing + Apple Developer enrollment (both deferred per current Wave 2 cohort policy)
 - **Report-back trigger:** Rust backend swap commits, first `npm run tauri dev` showing IRS search, any tag push, any signing config change
 <!-- snap-series:manager-block:end -->
