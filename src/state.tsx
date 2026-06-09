@@ -104,7 +104,11 @@ interface AppData {
   renameCollection: (id: string, name: string, iconSymbol: string) => void;
   deleteCollection: (id: string) => void;
   addToCollection: (id: string, item: SearchResult) => void;
+  /** Bulk-add already-flattened Favorite/CollectionItem rows; dedupes by compositeKey. */
+  addFavoritesToCollection: (id: string, items: Favorite[]) => void;
   removeFromCollection: (id: string, compositeKey: string) => void;
+  removeManyFromCollection: (id: string, compositeKeys: string[]) => void;
+  bulkRemoveFavorites: (compositeKeys: string[]) => void;
   isInCollection: (id: string, compositeKey: string) => boolean;
 
   notes: NoteMap;
@@ -246,6 +250,48 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [updateCollections],
   );
 
+  const removeManyFromCollection = useCallback(
+    (id: string, compositeKeys: string[]) => {
+      if (compositeKeys.length === 0) return;
+      const keySet = new Set(compositeKeys);
+      updateCollections((prev) =>
+        prev.map((c) =>
+          c.id === id
+            ? { ...c, items: c.items.filter((i) => !keySet.has(i.compositeKey)) }
+            : c,
+        ),
+      );
+    },
+    [updateCollections],
+  );
+
+  const addFavoritesToCollection = useCallback(
+    (id: string, items: Favorite[]) => {
+      if (items.length === 0) return;
+      updateCollections((prev) =>
+        prev.map((c) => {
+          if (c.id !== id) return c;
+          const existing = new Set(c.items.map((i) => i.compositeKey));
+          const additions = items
+            .filter((i) => !existing.has(i.compositeKey))
+            .map((i) => ({ ...i }) as CollectionItem);
+          if (additions.length === 0) return c;
+          return { ...c, items: [...c.items, ...additions] };
+        }),
+      );
+    },
+    [updateCollections],
+  );
+
+  const bulkRemoveFavorites = useCallback(
+    (compositeKeys: string[]) => {
+      if (compositeKeys.length === 0) return;
+      const keySet = new Set(compositeKeys);
+      updateFavorites((prev) => prev.filter((f) => !keySet.has(f.compositeKey)));
+    },
+    [updateFavorites],
+  );
+
   const isInCollection = useCallback(
     (id: string, compositeKey: string) =>
       collections
@@ -288,7 +334,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         renameCollection,
         deleteCollection,
         addToCollection,
+        addFavoritesToCollection,
         removeFromCollection,
+        removeManyFromCollection,
+        bulkRemoveFavorites,
         isInCollection,
         notes,
         setNote,

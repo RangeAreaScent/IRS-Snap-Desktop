@@ -20,6 +20,7 @@ export function CodeRow({
   return (
     <div
       className={`code-row${selected ? " code-row--selected" : ""}`}
+      data-key={item.id}
       onClick={onSelect}
       role="button"
       tabIndex={0}

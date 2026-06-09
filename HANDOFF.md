@@ -6,9 +6,9 @@
 - **Wave:** 2
 - **Stage:** 3 release  (0 spec / 1 scaffold / 2 features / 3 release / shipped)
 - **Last updated:** 2026-05-31
-- **Repo:** (TBD — github.com/RangeAreaScent/IRS-Snap-Desktop pending)
-- **Latest release:** none
-- **Latest CI:** n/a (no repo yet)
+- **Repo:** https://github.com/RangeAreaScent/IRS-Snap-Desktop (public, live 2026-05-31)
+- **Latest release:** v1.0.0 draft (pushed 2026-05-31) — local universal DMG (34 MB) attached separately, CI building Windows MSI/EXE
+- **Latest CI:** v1.0.0 queued (2026-05-31) — Windows-only matrix per ICD pattern, macOS DMG built locally
 - **Bundle id:** com.ryan.irssnap
 - **Dataset:** `irssnap.sqlite`, 31 MB, 8,296 provisions (IRC 2,145 + 26 CFR 6,151) + 1,036 forms + 978 pubs, license: public domain (uscode.house.gov, ecfr.gov, irs.gov)
 - **Deviations from playbook:** Domain has 3 entity kinds (provision/form/pub) vs ICD/Code Snap's single-table layout — needs irs.rs to expose 3 search paths; types.ts + components likewise 3-way
@@ -20,6 +20,19 @@
   - Keyboard shortcuts: ⌘1/2/3/4 tab switch, ⌘F focus search
   - Settings → Reset section (Clear Recently Viewed, Reset Onboarding)
   - polished styles: badge colors (IRC/Reg/Form/Sch/Pub/Notice), chip-row, detail-toolbar, action-link, note-section
+- **Desktop Phase A–D + Polish R1/R2/R3 applied (2026-06-09):** (per `../Snap Series Plan/SNAP_DESKTOP_IMPROVEMENT_PLAN.md` §11)
+  - **A. Keyboard-first**: `useListKeyNav` (id-based, IRS uses `compositeKey` not `code`), Toaster (window CustomEvent), ⌘C/D/E/F/K/,/1-4 global, ⌘D toggles favorite via cached selectedItem, focus ring on selected row
+  - **B. Split view**: Splitter (drag-resize 320–720px, `localStorage snap.listWidth`), `NARROW_PX=900` responsive overlay with back button + Esc, EmptyDetail with mac/win shortcut guide
+  - **C. ⌘K palette**: cmdk (+18KB gzip), 5 groups (Code/Recent/Favorites/Go to/Actions), noise rules (Code ≥ 2 chars, Recent/Favs idle-only), `[cmdk-root]` guard in nav hook
+  - **D. Native menu + status bar**: `menu.rs` (App/File/Edit/View/Window/Help, Help URLs to uscode.house.gov / ecfr.gov / irs.gov via `opener` plugin), `listen("menu:*")` wiring, `.app__main` flex-column with `min-height:0`, status bar shows `8,296 provisions · 1,036 forms · 978 pubs · IRC + 26 CFR + irs.gov` + ⌘K hint
+  - **Polish R1**: Favorites + Collection-detail multi-select (Select button, 📁📄🗑✕ icon bar, checkbox column, `bulkRemoveFavorites` / `removeManyFromCollection` / `addFavoritesToCollection` state helpers, `BulkAddToCollectionModal`, synthetic Collection for bulk PDF export)
+  - **Polish R2**: All `window.confirm` → `@tauri-apps/plugin-dialog` `ask()` (Collection delete, Note delete, Premium deactivate, Recent Clear, bulk Remove) — Tauri 2 webview silently ignores `window.confirm`
+  - **Polish R3**: How to Use modal in Settings (5 sections, `<kbd>` shortcuts table, mac/win split); Copy buttons 2×2 grid + container query (`@container detail (max-width:460px)`) so splitter drag collapses gracefully; Search Relevance/Citation segmented sort using `Intl.Collator({numeric:true})`
+  - Bundle: 263 → 330 KB JS (cmdk +50, How to Use + multi-select + sort minimal); cargo check + `npm run tauri dev` clean
+  - **iCloud build cache trap**: `failed to read plugin permissions: ...com~apple~CloudDocs/...` from stale tauri build cache after we moved repos. Fix: `cargo clean -p tauri`. Added to series §11.7 trap table.
+- **Polish R3 PDF + iOS backport (2026-06-09):**
+  - `src-tauri/src/pdf.rs` — new `Layout::text_centered(s, size, bold)` (width via `units(s)*0.5em*MM_PER_PT`) and `Layout::hr()` (`EndTextSection → SetOutlineColor(grey 0.82) → SetOutlineThickness(0.4pt) → DrawLine(MARGIN..PAGE_W-MARGIN at self.y+4.5mm) → StartTextSection` — the §11.7 baseline trap value). Collection export: centered title + meta, hr after header, hr between rows, footer hr + 2-line disclaimer + sources line. `cargo test --lib pdf` 3/3 (ASCII + Korean subset + wrap).
+  - iOS sister (`../IRS-Snap/`): `Views/Settings/HowToUseView.swift` new (Search / Favorites / Export / Cross-links / Tips sections using `List` + `LabeledContent`, gesture-framed not keyboard); SettingsView Recent Clear → `.confirmationDialog` via `@State` flag; CollectionExporter HTML `header { text-align: center }` + `footer { text-align: center }` + sources line — visual parity with desktop pdf.rs. `xcodebuild -destination "platform=iOS Simulator,name=iPhone 17" build` → **BUILD SUCCEEDED** (file-system-synchronized group auto-discovers HowToUseView).
 - **First Mac DMG bundled (2026-05-31):**
   - `…/target/universal-apple-darwin/release/bundle/dmg/IRS Snap_1.0.0_universal.dmg` — **34 MB**
   - `…/bundle/macos/IRS Snap.app` — 53 MB, **universal Mach-O** (x86_64 + arm64)
@@ -40,14 +53,14 @@
 <!-- snap-series:manager-block:end -->
 
 > Last updated 2026-05-29. App version 1.0.0.
-> Repository: <https://github.com/RangeAreaScent/ICD-Snap-Desktop>
+> Repository: <https://github.com/RangeAreaScent/IRS-Snap-Desktop>
 >
-> **Series context.** ICD Snap is one of nine apps in the Snap series.
+> **Series context.** IRS Snap is one of ten apps in the Snap series.
 > For series-wide conventions, the live cross-app dashboard, and the
 > bootstrap prompts for Claude sessions, see
 > `../Snap Series Plan/` (especially `SNAP_SERIES_GUIDE.md` and
 > `SNAP_SERIES_STATUS.md`). This document is the canonical reference
-> for the **desktop side of ICD Snap specifically**.
+> for the **desktop side of IRS Snap specifically**.
 >
 > Read sections 1–6 first, then dip into the rest as needed.
 
@@ -65,7 +78,7 @@
 8. [Feature map — where each thing lives](#8-feature-map)
 9. [Configuration](#9-configuration)
 10. [Lemon Squeezy setup (the remaining external task)](#10-lemon-squeezy-setup)
-11. [Updating the ICD-10-CM data (FY 2027 and beyond)](#11-updating-the-icd-10-cm-data)
+11. [Updating the IRS dataset (FY 2027 and beyond)](#11-updating-the-icd-10-cm-data)
 12. [Maintenance recipes](#12-maintenance-recipes)
 13. [Known gotchas](#13-known-gotchas)
 14. [Testing](#14-testing)
@@ -77,9 +90,9 @@
 
 ## 1. What this is
 
-ICD Snap Desktop is a Mac + Windows desktop port of the existing **ICD Snap**
-iOS app — a fast, offline ICD-10-CM medical code lookup tool. It shares no
-code with the iOS app; the iOS source (sibling folder `ICD Snap/`) is the
+IRS Snap Desktop is a Mac + Windows desktop port of the existing **IRS Snap**
+iOS app — a fast, offline IRS reference (IRC, Treasury Regs, Forms, Pubs) lookup tool. It shares no
+code with the iOS app; the iOS source (sibling folder `IRS-Snap/`) is the
 product reference only.
 
 **Status as of handoff:** feature-complete.
@@ -91,7 +104,7 @@ product reference only.
   **not yet configured** — current artifacts are unsigned. Users see a
   Gatekeeper / SmartScreen warning on first launch.
 
-**Core promise:** "Find ICD-10-CM codes in 2 seconds. No ads, no
+**Core promise:** "Find IRS dataset entries in 2 seconds. No ads, no
 subscription, works offline."
 
 **Differentiation from the iOS app:**
@@ -112,9 +125,9 @@ subscription, works offline."
 | Shell | Tauri 2 (Rust backend, system webview frontend) |
 | UI | React 19 + TypeScript + Vite |
 | Backend lang | Rust (stable, edition 2021) |
-| Read-only ICD data | `icd10cm_2026.sqlite` (~40 MB), bundled as a Tauri resource; FTS5 full-text + a prefix index. Accessed from Rust via `rusqlite` with the `bundled` feature (compiles SQLite + FTS5 in-tree). |
+| Read-only IRS data | `irssnap.sqlite` (~31 MB), bundled as a Tauri resource; FTS5 full-text + a prefix index. Accessed from Rust via `rusqlite` with the `bundled` feature (compiles SQLite + FTS5 in-tree). |
 | User data | Plain JSON files in the app data directory, written atomically (`store.rs`). |
-| Search abbreviations | Static dictionary (~125 entries) in `abbreviations.rs`, ported verbatim from the iOS app. |
+| Search abbreviations | Removed in v1 — IRS-specific abbreviations land in v1.1+. The bundled `irs.rs` does no abbreviation expansion at search time. |
 | Premium license | Lemon Squeezy license API (HTTP) via `ureq`. Online activate / validate / deactivate. Per-key device limit enforced by LS server-side. |
 | Hidden override | Separate stored flag; toggled by the secret version-tap rhythm. Effective unlock = real license OR override. Mirrors the iOS `SecretTapDetector`. |
 | PDF export | Native generation in Rust via `printpdf 0.8` (font subsetting). Bundled NanumGothic (SIL OFL 1.1) so Korean notes render correctly while keeping output small. |
@@ -126,7 +139,7 @@ subscription, works offline."
 ## 3. Repository layout
 
 ```
-ICD Snap_mac_win_app/
+IRS Snap_Mac_Win_app/
 ├── HANDOFF.md                      ← this file
 ├── package.json                    ← npm scripts + frontend deps
 ├── tsconfig.json
@@ -166,7 +179,7 @@ ICD Snap_mac_win_app/
     │   ├── icon.ico                ← Windows
     │   └── *.png                   ← various sizes
     ├── resources/
-    │   ├── icd10cm_2026.sqlite     ← 40 MB FY 2026 dataset, bundled
+    │   ├── irssnap.sqlite     ← 31 MB v1 dataset (2026), bundled
     │   └── fonts/
     │       ├── NanumGothic-Regular.ttf  ← embedded for Korean PDF export
     │       ├── NanumGothic-Bold.ttf
@@ -175,7 +188,7 @@ ICD Snap_mac_win_app/
         ├── main.rs                 ← thin entry; calls icdsnap_lib::run()
         ├── lib.rs                  ← Tauri builder, AppState, command list
         ├── icd.rs                  ← SQLite + FTS5 search + detail fetch
-        ├── abbreviations.rs        ← 125+ clinical abbreviation expansions
+        ├── abbreviations.rs        ← removed — IRS abbreviations land in v1.1+
         ├── store.rs                ← atomic JSON document store
         ├── license.rs              ← Lemon Squeezy + hidden override layer
         └── pdf.rs                  ← collection → PDF (with subsetting + CJK)
@@ -258,8 +271,8 @@ npm run tauri build
 ```
 
 Output (`src-tauri/target/release/bundle/`):
-- `macos/ICD Snap.app` (~49 MB — includes the 40 MB ICD DB)
-- `dmg/ICD Snap_1.0.0_aarch64.dmg` (~10 MB — DMGs compress aggressively)
+- `macos/IRS Snap.app` (~49 MB — includes the 31 MB IRS DB)
+- `dmg/IRS Snap_1.0.0_aarch64.dmg` (~10 MB — DMGs compress aggressively)
 
 ### 6.2 macOS — Universal (Intel + Apple Silicon, what ships)
 
@@ -268,7 +281,7 @@ rustup target add x86_64-apple-darwin
 npm run tauri build -- --target universal-apple-darwin
 ```
 
-Output: `ICD Snap_1.0.0_universal.dmg`. The `.app` binary becomes a fat
+Output: `IRS Snap_1.0.0_universal.dmg`. The `.app` binary becomes a fat
 Mach-O containing both architectures (~2× the arm64 size). Use this for
 public distribution.
 
@@ -278,14 +291,14 @@ On a Windows machine that satisfies the prerequisites in §4:
 
 ```cmd
 git clone <repo>            REM or copy the project folder
-cd ICD Snap_mac_win_app
+cd IRS Snap_Mac_Win_app
 npm install
 npm run tauri build
 ```
 
 Output (`src-tauri\target\release\bundle\`):
-- `msi\ICD Snap_1.0.0_x64_en-US.msi`   ← MSI installer (recommended)
-- `nsis\ICD Snap_1.0.0_x64-setup.exe`  ← NSIS setup wizard
+- `msi\IRS Snap_1.0.0_x64_en-US.msi`   ← MSI installer (recommended)
+- `nsis\IRS Snap_1.0.0_x64-setup.exe`  ← NSIS setup wizard
 
 Either one is a valid installer; ship whichever your audience prefers. The
 MSI is more enterprise-friendly; the NSIS .exe is smaller and a friendlier
@@ -298,7 +311,7 @@ especially if the project was originally developed on macOS. Hitting any
 of them produces opaque error messages — save yourself the hour.
 
 1. **Put the project at a space-free path.** Use `C:\dev\icdsnap` rather
-   than `C:\Users\<you>\Desktop\ICD Snap_Win`. Tauri/cargo *usually*
+   than `C:\Users\<you>\Desktop\IRS Snap_Win`. Tauri/cargo *usually*
    handle spaces, but rusqlite's build script and `cargo metadata`
    occasionally trip on them with cryptic errors. The fix is cheap, so
    just avoid the problem.
@@ -428,7 +441,7 @@ draft GitHub Release. The full sequence:
    gh run view --log-failed              # if anything fails, scoped logs
    ```
 5. **Review the draft release** at
-   `https://github.com/RangeAreaScent/ICD-Snap-Desktop/releases` — confirm
+   `https://github.com/RangeAreaScent/IRS-Snap-Desktop/releases` — confirm
    the Mac `.dmg` and the Windows `.msi` + `.exe` are attached and have
    sensible sizes (Mac ~18 MB DMG, Windows ~13 MB MSI).
 6. **Smoke-test** at least the universal DMG on Apple Silicon (and Intel
@@ -592,7 +605,7 @@ for the full release flow):
 - `package.json` — `"version": "1.0.0"`
 - `HANDOFF.md` header — `App version 1.0.0`
 
-Bundle identifier (`com.ryan.icdsnap`) and product name (`ICD Snap`) live
+Bundle identifier (`com.ryan.icdsnap`) and product name (`IRS Snap`) live
 in `src-tauri/tauri.conf.json`. Don't change the identifier post-launch
 — it determines the app data directory path; changing it would orphan
 existing users' data.
@@ -611,7 +624,7 @@ someone creates the actual LS product. The flow once set up:
    so they handle global tax, payment, refunds, fraud.
 2. **Create a Store** in the dashboard (name, country, currency).
 3. **Create a Product:**
-   - Name: e.g. "ICD Snap Premium"
+   - Name: e.g. "IRS Snap Premium"
    - Pricing: one-time, e.g. $4.99
    - **License Keys: enabled.** Set "Activation limit" to **2** (matches
      the per-key device cap we agreed on).
@@ -619,11 +632,11 @@ someone creates the actual LS product. The flow once set up:
 4. **Test** with a test license key from the LS dashboard:
    - In the app: Settings → Premium → paste key → Activate.
    - LS dashboard: the license now shows one "instance" with name
-     "ICD Snap Desktop". Activate on a second machine; a second instance
+     "IRS Snap Desktop". Activate on a second machine; a second instance
      appears. A third machine should be refused.
 5. **Tighten validation (recommended once the product is created):** add a
    `product_id` check so keys from other LS products in the same account
-   can't accidentally unlock ICD Snap. See [Appendix B](#appendix-b--hardening-lemon-squeezy).
+   can't accidentally unlock IRS Snap. See [Appendix B](#appendix-b--hardening-lemon-squeezy).
 6. **Point users at the LS checkout URL** from the in-app About page or
    marketing site. After purchase LS emails the buyer their license key.
 
@@ -638,13 +651,13 @@ period). Only an explicit `valid: false` from LS locks premium.
 
 ---
 
-## 11. Updating the ICD-10-CM data
+## 11. Updating the IRS dataset
 
-CDC publishes annual ICD-10-CM updates (fiscal year, October cutover).
+The US Code (uscode.house.gov) + eCFR (ecfr.gov) + IRS (irs.gov) publish updates (fiscal year, October cutover).
 When FY 2027 comes out:
 
-1. Download the FY 2027 CDC source files (public domain).
-2. Build a SQLite with the same schema as the current `icd10cm_2026.sqlite`
+1. Download the FY 2027 IRS source files (public domain).
+2. Build a SQLite with the same schema as the current `irssnap.sqlite`
    (a Python script does this in the iOS project's data pipeline):
    ```sql
    CREATE TABLE codes (
@@ -669,7 +682,7 @@ When FY 2027 comes out:
 3. Drop `icd10cm_2027.sqlite` into `src-tauri/resources/`. Remove the 2026
    file or keep it around for diffs.
 4. Update the path in two places:
-   - `src-tauri/src/lib.rs` — the `app.path().resolve("resources/icd10cm_2026.sqlite", ...)` call.
+   - `src-tauri/src/lib.rs` — the `app.path().resolve("resources/irssnap.sqlite", ...)` call.
    - `src-tauri/tauri.conf.json` — `bundle.resources`.
 5. Update the version label in `src/components/SettingsView.tsx` (Data
    section: "FY 2026" → "FY 2027") and the billable code count.
@@ -677,7 +690,7 @@ When FY 2027 comes out:
 7. Bump the app version (§9) and rebuild.
 
 Existing users' favorites/collections/notes survive — they're keyed by
-ICD code string, which is stable across years (deprecated codes still
+provisionId / compositeKey, which is stable across years (deprecated codes still
 exist in the new dataset, just not billable).
 
 ---
@@ -715,7 +728,7 @@ line) and in the prompt messages inside `state.tsx`.
 ### Add a new abbreviation
 `src-tauri/src/abbreviations.rs` — add a `("ABBR", "expansion")` tuple to
 the `DICTIONARY` constant. Lookup is uppercase-insensitive. Make sure the
-expansion phrase appears verbatim in at least one ICD description, or
+expansion phrase appears verbatim in at least one IRS dataset entry text, or
 add multiple variants.
 
 ### Change zoom factors / add another text size
@@ -776,11 +789,11 @@ See [Appendix B](#appendix-b--hardening-lemon-squeezy).
    cd src-tauri/target/universal-apple-darwin/release/bundle
    rm -f "macos/rw."*".dmg"             # clean abandoned bundle_dmg tempfile
    mkdir -p _dmg_staging
-   cp -R "macos/ICD Snap.app" _dmg_staging/
+   cp -R "macos/IRS Snap.app" _dmg_staging/
    ln -sf /Applications _dmg_staging/Applications
-   hdiutil create -fs HFS+ -volname "ICD Snap" \
+   hdiutil create -fs HFS+ -volname "IRS Snap" \
        -srcfolder _dmg_staging -format UDZO -ov \
-       "dmg/ICD Snap_1.0.0_universal.dmg"
+       "dmg/IRS Snap_1.0.0_universal.dmg"
    rm -rf _dmg_staging
    ```
    This is what we used to produce the shipped universal DMG. The GitHub
@@ -1009,7 +1022,7 @@ jobs:
         with:
           args: ${{ matrix.args }}
           tagName: ${{ github.ref_name }}
-          releaseName: 'ICD Snap ${{ github.ref_name }}'
+          releaseName: 'IRS Snap ${{ github.ref_name }}'
           releaseDraft: true
 ```
 
@@ -1044,7 +1057,7 @@ draft GitHub Release for you to review and publish.
 ## Appendix B — Hardening Lemon Squeezy
 
 Once you have a real LS product, add a `product_id` check so license keys
-from any other LS product in your account can't accidentally unlock ICD
+from any other LS product in your account can't accidentally unlock IRS
 Snap.
 
 In `src-tauri/src/license.rs`:
@@ -1081,7 +1094,7 @@ fn product_id_ok(meta: &Option<Meta>) -> bool {
 Then in `activate`:
 ```rust
 if !resp.activated || !product_id_ok(&resp.meta) {
-    return Err(resp.error.unwrap_or_else(|| "This license key is not valid for ICD Snap.".into()));
+    return Err(resp.error.unwrap_or_else(|| "This license key is not valid for IRS Snap.".into()));
 }
 ```
 

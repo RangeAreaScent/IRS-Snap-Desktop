@@ -5,9 +5,12 @@ interface Props {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  /** Override the default 420px modal width — pass 560/600 for content-heavy
+      modals (How to Use, About) that read better at a wider measure. */
+  width?: number;
 }
 
-export function Modal({ title, onClose, children, footer }: Props) {
+export function Modal({ title, onClose, children, footer, width }: Props) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -18,7 +21,11 @@ export function Modal({ title, onClose, children, footer }: Props) {
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal"
+        style={width ? { width: `${width}px` } : undefined}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal__header">
           <h3 className="modal__title">{title}</h3>
           <button className="modal__close" onClick={onClose} title="Close">

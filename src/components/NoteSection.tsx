@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { useAppData } from "../state";
 
 interface Props {
@@ -43,12 +44,15 @@ export function NoteSection({ compositeKey, displayHeader }: Props) {
     setEditing(false);
   }
 
-  function remove() {
-    if (window.confirm("Delete this note?")) {
-      deleteNote(compositeKey);
-      setDraft("");
-      setEditing(false);
-    }
+  async function remove() {
+    const ok = await ask("Delete this note?", {
+      title: "Delete note",
+      kind: "warning",
+    });
+    if (!ok) return;
+    deleteNote(compositeKey);
+    setDraft("");
+    setEditing(false);
   }
 
   return (

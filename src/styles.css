@@ -179,6 +179,13 @@ html,
 body,
 #root {
   height: 100%;
+  /* Hard-lock the outer viewport — only inner scroll containers
+     (.list-scroll, .detail-scroll, .settings-pane) should ever scroll.
+     Without overflow: hidden here, a broken flex chain anywhere inside
+     lets the trackpad scroll the entire page (sidebar + status bar with
+     it). §11.7 trap: complements the min-height: 0 propagation on every
+     nested flex column. */
+  overflow: hidden;
 }
 
 body {
@@ -201,7 +208,13 @@ button {
 /* ---- layout ---- */
 .app {
   display: flex;
+  flex-direction: column;
   height: 100%;
+}
+.app__main {
+  display: flex;
+  flex: 1;
+  min-height: 0; /* essential — otherwise the status bar gets pushed off */
 }
 
 .rail {
@@ -258,16 +271,142 @@ button {
   flex: 1;
   display: flex;
   min-width: 0;
+  /* §11.7 trap: nested flex chains need min-height: 0 on every level —
+     .app__main alone isn't enough. Without this on .content, .list-pane,
+     and .detail-pane, the inner .list-scroll can't shrink, so the whole
+     page scrolls instead of just the list. */
+  min-height: 0;
 }
 
 /* ---- list pane ---- */
 .list-pane {
-  width: 380px;
+  width: var(--list-width, 380px);
   flex-shrink: 0;
   border-right: 1px solid var(--border);
   background: var(--pane);
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+
+/* ---- splitter (Phase B) ---- */
+.splitter {
+  width: 6px;
+  margin-left: -6px;
+  cursor: col-resize;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 5;
+  background: transparent;
+  transition: background 0.12s;
+}
+.splitter:hover,
+.splitter--dragging {
+  background: var(--accent);
+  opacity: 0.55;
+}
+
+/* ---- narrow window overlay (Phase B) ---- */
+.content--narrow .list-pane {
+  width: 100%;
+  border-right: none;
+}
+.content--narrow .splitter { display: none; }
+.content--narrow .detail-pane { display: none; }
+.content--narrow.content--detail-overlay .list-pane { display: none; }
+.content--narrow.content--detail-overlay .detail-pane {
+  display: flex;
+  flex: 1;
+  width: 100%;
+}
+
+/* ---- detail back button + empty state (Phase B) ---- */
+.detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 12px 0 0 14px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.detail-back:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+/* In narrow overlay mode the .content has no other detail siblings so
+   anchor the back button to the content frame. */
+.content--detail-overlay .detail-back--floating {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  z-index: 20;
+  background: var(--pane);
+}
+.content { position: relative; }
+
+.detail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 40px 32px;
+  color: var(--text-dim);
+  text-align: center;
+}
+.detail-empty__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.detail-empty__hint {
+  font-size: 13px;
+  margin-bottom: 28px;
+  max-width: 360px;
+  line-height: 1.5;
+}
+.detail-empty__keys {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 14px;
+  row-gap: 8px;
+  text-align: left;
+  font-size: 12.5px;
+  max-width: 380px;
+}
+.detail-empty__keys dt {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  white-space: nowrap;
+}
+.detail-empty__keys dd {
+  margin: 0;
+  color: var(--text-dim);
+}
+.detail-empty__keys kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--pane-2);
+  color: var(--text);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  text-align: center;
+  line-height: 1.4;
 }
 
 .search-bar {
@@ -347,6 +486,12 @@ button {
 .code-row--selected,
 .code-row--selected:hover {
   background: var(--selected);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.code-row:focus { outline: none; }
+.code-row:focus-visible:not(.code-row--selected) {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 
 .code-row__main {
@@ -449,10 +594,21 @@ button {
 .detail-pane {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   background: var(--pane-2);
   position: relative;
   display: flex;
   flex-direction: column;
+  /* IRS layouts (ProvisionLayout / FormLayout / PubLayout) render content
+     directly inside .detail-pane without a .detail-scroll wrapper. The
+     pane itself is therefore the scroll container — required so long
+     bodies (e.g. § 3121 wages definition) don't overflow under the status
+     bar. */
+  overflow-y: auto;
+  /* Container query for inner layout — used by .copy-group fallback so it
+     reacts to the actual detail pane width, not the window width. */
+  container-type: inline-size;
+  container-name: detail;
 }
 
 .detail-pane--empty {
@@ -491,11 +647,33 @@ button {
 }
 
 .copy-group {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin: 0 auto 24px;
-  max-width: 340px;
+  max-width: 480px;
+}
+
+/* Primary copy (first child) spans the full row — it's the headline action. */
+.copy-btn:first-child {
+  grid-column: 1 / -1;
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* Container query — when the detail pane gets narrow (narrow overlay,
+   small windows) collapse to a single column instead of squishing two
+   buttons side by side. @media on window width is wrong here because the
+   detail pane width can shrink independently via splitter drag. */
+@container detail (max-width: 460px) {
+  .copy-group {
+    grid-template-columns: 1fr;
+  }
+  .copy-btn:first-child {
+    grid-column: auto;
+  }
 }
 
 .copy-btn {
@@ -507,13 +685,6 @@ button {
   font-weight: 600;
   color: var(--text);
   text-align: left;
-}
-
-.copy-btn:first-child {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 .copy-btn:hover {
@@ -626,6 +797,16 @@ button {
 
 .pane-header__action:hover {
   background: var(--hover);
+}
+.pane-header__action--text {
+  width: auto;
+  padding: 0 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.pane-header__action--text:hover {
+  background: var(--accent-soft);
 }
 
 .pane-header--detail {
@@ -1040,6 +1221,7 @@ button {
 .settings-pane {
   flex: 1;
   min-width: 0;
+  min-height: 0; /* see §11.7 trap — required for overflow-y to take effect */
   background: var(--pane-2);
   overflow-y: auto;
 }
@@ -1408,6 +1590,35 @@ button {
   font-size: 11px;
   color: var(--text-dim, #888);
   border-bottom: 1px solid var(--border, #e3e5e9);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Segmented control for Relevance / Citation sort. */
+.sort-bar {
+  margin-left: auto;
+  display: inline-flex;
+  background: var(--pane-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px;
+}
+.sort-bar__btn {
+  background: transparent;
+  border: none;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 0.2px;
+}
+.sort-bar__btn--on {
+  background: var(--pane);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(15, 18, 22, 0.06);
 }
 
 /* type/kind badges */
@@ -1626,7 +1837,37 @@ button {
   cursor: pointer;
   padding: 2px 6px;
 }
-.recent-row, .hint-row {
+/* Recent section header — title left, Clear action right. Mirrors Tariff. */
+.recent-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 8px 16px 4px;
+}
+.recent-head__title {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-faint, #8b929c);
+}
+.recent-head__action {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.recent-head__action:hover {
+  background: var(--accent-soft);
+}
+
+/* First-run "Try searching" hint rows — kept distinct from real result rows
+   so they read as suggestions, not history. */
+.hint-row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1640,16 +1881,10 @@ button {
   color: var(--text, #1c1d21);
   font-size: 13px;
 }
-.recent-row:hover, .hint-row:hover {
+.hint-row:hover {
   background: var(--pane-2, #fafbfc);
   border-color: var(--border, #e3e5e9);
 }
-.recent-row__primary {
-  font-family: ui-monospace, monospace;
-  font-weight: 600;
-  min-width: 90px;
-}
-.recent-row__head { color: var(--text-dim, #666); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hint-row__query {
   font-family: ui-monospace, monospace;
   font-weight: 600;
@@ -1658,3 +1893,423 @@ button {
 .hint-row__dash { color: var(--text-dim, #aaa); }
 .hint-row__desc { color: var(--text-dim, #666); flex: 1; }
 .hint-row__arrow { color: var(--text-dim, #bbb); font-size: 11px; }
+
+/* ────── Multi-select (Polish R1) ────── */
+
+.multi-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 14px 8px;
+  padding: 6px 8px;
+  background: var(--pane-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+.multi-bar__count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  padding-left: 4px;
+}
+.multi-bar__spacer { flex: 1; }
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.icon-btn:hover:not(:disabled) {
+  background: var(--pane);
+  border-color: var(--border);
+  color: var(--text);
+}
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.icon-btn--danger:hover:not(:disabled) {
+  color: var(--warn, #e25a4b);
+  border-color: var(--warn, #e25a4b);
+}
+
+.code-row--selecting { cursor: pointer; }
+.code-row--picked,
+.code-row--picked:hover {
+  background: var(--selected);
+}
+.code-row__check {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-right: 10px;
+  margin-top: 2px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  background: var(--pane);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--pane);
+}
+.code-row__check--on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.pick-row__dim {
+  color: var(--text-faint);
+  font-style: normal;
+  font-weight: 500;
+}
+
+/* ────── About modal ────── */
+
+.about { font-size: 13.5px; line-height: 1.55; color: var(--text); }
+.about p { margin: 0 0 12px; }
+.about__pitch {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+  margin-bottom: 6px !important;
+}
+.about__lead {
+  text-align: center;
+  color: var(--text-dim);
+  margin-bottom: 22px !important;
+}
+.about__h {
+  margin: 18px 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-faint);
+}
+.about__coverage {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.about__coverage td {
+  padding: 5px 8px 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+.about__coverage td:first-child {
+  font-weight: 600;
+  color: var(--text);
+}
+.about__coverage td:last-child {
+  text-align: right;
+  color: var(--text-dim);
+}
+.about__small {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.about__small a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.about__small a:hover { text-decoration: underline; }
+.about__disclaimer {
+  margin-top: 18px !important;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+/* Compact version line at the bottom of Settings (replaces the inline
+   About row that's now in a modal). */
+.settings-version {
+  font-size: 11px;
+  color: var(--text-faint);
+  text-align: center;
+  padding: 12px 0 4px;
+  cursor: default;
+  user-select: none;
+}
+
+/* ────── How to Use modal (Polish R3) ────── */
+
+/* NavRow — Settings list rows that push into a child view (How to Use,
+   About). Border-top separator between rows, label fades to accent on
+   hover, chevron on the right. Mirrors Tariff. */
+.nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 11px 0;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font-size: 14px;
+  font-family: inherit;
+}
+.nav-row:first-child { border-top: none; }
+.nav-row:hover .nav-row__label { color: var(--accent); }
+.nav-row__label {
+  flex: 1;
+  transition: color 0.12s;
+}
+.nav-row__chevron {
+  font-size: 18px;
+  color: var(--text-faint);
+  line-height: 1;
+  margin-left: 8px;
+}
+
+.howto {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  font-size: 13px;
+  color: var(--text);
+}
+.howto__h {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-faint);
+}
+.howto-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.howto-table td {
+  padding: 6px 10px 6px 0;
+  vertical-align: top;
+  line-height: 1.45;
+}
+.howto-table td:first-child {
+  width: 38%;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+.howto-table td:last-child {
+  color: var(--text-dim);
+}
+/* Keys column — use an inline-flex wrapper (.howto-keys) so the kbds stay
+   on one line. A `display: flex` on the <td> itself made each kbd a
+   separate flex item that wrapped vertically inside the cell. */
+.howto-table--keys td:first-child {
+  white-space: nowrap;
+  vertical-align: top;
+}
+.howto-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.howto-table kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--pane-2);
+  color: var(--text);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* ────── Status bar (Phase D) ────── */
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 16px;
+  background: var(--pane-2);
+  border-top: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 11.5px;
+  line-height: 1.4;
+  user-select: none;
+}
+.status-bar__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+.status-bar__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.status-bar__spacer { flex: 1; }
+.status-bar__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.status-bar__hint kbd {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  background: var(--pane);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 5px;
+  color: var(--text-dim);
+}
+
+/* ────── Command palette (Phase C) ────── */
+
+[cmdk-overlay] {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 18, 22, 0.36);
+  z-index: 9000;
+  animation: snap-cmdk-fade 0.12s ease-out;
+}
+@keyframes snap-cmdk-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.cmdk-root {
+  position: fixed;
+  top: 16vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(640px, calc(100vw - 48px));
+  max-height: 70vh;
+  background: var(--pane);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(15, 18, 22, 0.34);
+  z-index: 9100;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cmdk-input {
+  width: 100%;
+  padding: 14px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+}
+.cmdk-input:focus { outline: none; }
+
+.cmdk-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+}
+.cmdk-empty {
+  padding: 28px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.cmdk-group[hidden] { display: none; }
+.cmdk-group [cmdk-group-heading] {
+  padding: 10px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-faint);
+}
+
+.cmdk-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13.5px;
+}
+.cmdk-item[data-selected="true"] {
+  background: var(--selected);
+  color: var(--text);
+}
+.cmdk-item__primary {
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.cmdk-item__secondary {
+  color: var(--text-dim);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.cmdk-item__shortcut {
+  margin-left: auto;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: var(--text-faint);
+  background: var(--pane-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+/* ────── Toaster (Phase A) ────── */
+
+.toaster {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+  z-index: 9500;
+}
+.toaster__item {
+  background: var(--text);
+  color: var(--pane);
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  animation: snap-toast-in 0.16s ease-out;
+}
+@keyframes snap-toast-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

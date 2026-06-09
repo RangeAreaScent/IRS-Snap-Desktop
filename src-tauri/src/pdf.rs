@@ -139,6 +139,81 @@ impl Layout {
         }
     }
 
+    /// Writes a single line of text centered horizontally on the page.
+    /// Centering uses the same half-em width estimate as `wrap` — proportional
+    /// font means it's an approximation but matches well for short headers.
+    fn text_centered(&mut self, s: &str, size: f32, bold: bool) {
+        let font = if bold {
+            self.bold.clone()
+        } else {
+            self.regular.clone()
+        };
+        let line_h = size * 1.34 * MM_PER_PT;
+        let text_w_mm = units(s) as f32 * 0.5 * size * MM_PER_PT;
+        let x_mm = ((PAGE_W - text_w_mm) / 2.0).max(MARGIN);
+        if self.y < BOTTOM_LIMIT {
+            self.new_page();
+        }
+        let x = mm_to_pt(x_mm);
+        let y = mm_to_pt(self.y);
+        self.cur.push(Op::SetTextMatrix {
+            matrix: TextMatrix::Translate(Pt(x), Pt(y)),
+        });
+        self.cur.push(Op::SetFontSize {
+            size: Pt(size),
+            font: font.clone(),
+        });
+        self.cur.push(Op::WriteText {
+            items: vec![TextItem::Text(s.to_string())],
+            font: font.clone(),
+        });
+        self.y -= line_h;
+    }
+
+    /// Draws a thin grey horizontal rule across the writable column.
+    ///
+    /// ⚠️ Per §11.7 trap: `self.y` is the baseline for the *next* row of text,
+    /// not the bottom of the *previous* row. Drawing at `self.y + 0.5mm`
+    /// puts the line through the next row's glyphs (cap height ~2.7mm for
+    /// 11pt). `self.y + 4.5mm` sits in the natural gap between two rows.
+    /// The rule itself doesn't advance y; pair with `gap()` afterwards.
+    fn hr(&mut self) {
+        // Path operators must come from outside a text section.
+        self.cur.push(Op::EndTextSection);
+        self.cur.push(Op::SetOutlineColor {
+            col: Color::Rgb(Rgb {
+                r: 0.82,
+                g: 0.82,
+                b: 0.82,
+                icc_profile: None,
+            }),
+        });
+        self.cur.push(Op::SetOutlineThickness { pt: Pt(0.4) });
+        let y_pt = mm_to_pt(self.y + 4.5);
+        self.cur.push(Op::DrawLine {
+            line: Line {
+                points: vec![
+                    LinePoint {
+                        p: Point {
+                            x: Pt(mm_to_pt(MARGIN)),
+                            y: Pt(y_pt),
+                        },
+                        bezier: false,
+                    },
+                    LinePoint {
+                        p: Point {
+                            x: Pt(mm_to_pt(PAGE_W - MARGIN)),
+                            y: Pt(y_pt),
+                        },
+                        bezier: false,
+                    },
+                ],
+                is_closed: false,
+            },
+        });
+        self.cur.push(Op::StartTextSection);
+    }
+
     /// Writes wrapped text at the given point size and left indent (mm).
     fn text(&mut self, s: &str, size: f32, indent: f32, bold: bool) {
         let font = if bold {
@@ -196,17 +271,24 @@ pub fn export(path: &str, title: &str, entries: &[ExportEntry]) -> Result<(), St
 
     let mut layout = Layout::new(regular_id, bold_id);
 
-    layout.text(title, 18.0, 0.0, true);
+    // Centered header — IRS dataset summary line beneath the title.
+    layout.text_centered(title, 18.0, true);
     layout.gap(1.5);
-    layout.text(
-        &format!("{} items  -  IRC + Treasury Regs + Forms + Pubs", entries.len()),
+    layout.text_centered(
+        &format!(
+            "{} item{}  ·  IRC + Treasury Regs + IRS Forms + Pubs",
+            entries.len(),
+            if entries.len() == 1 { "" } else { "s" },
+        ),
         9.0,
-        0.0,
         false,
     );
-    layout.gap(5.0);
+    layout.gap(2.0);
+    layout.hr();
+    layout.gap(4.5);
 
-    for e in entries {
+    let total = entries.len();
+    for (i, e) in entries.iter().enumerate() {
         layout.text(&e.code, 13.0, 0.0, true);
         layout.text(&e.description, 10.5, 0.0, false);
         if !e.note.trim().is_empty() {
@@ -214,17 +296,38 @@ pub fn export(path: &str, title: &str, entries: &[ExportEntry]) -> Result<(), St
         }
         let mut meta = format!("Kind: {}", e.billable);
         if !e.chapter.is_empty() {
-            meta.push_str(&format!("   |   Detail: {}", e.chapter));
+            meta.push_str(&format!("   ·   Detail: {}", e.chapter));
         }
         if !e.block.is_empty() {
-            meta.push_str(&format!("   |   Parent: {}", e.block));
+            meta.push_str(&format!("   ·   Parent: {}", e.block));
         }
         if !e.category.is_empty() {
-            meta.push_str(&format!("   |   Source: {}", e.category));
+            meta.push_str(&format!("   ·   Source: {}", e.category));
         }
         layout.text(&meta, 8.5, 5.0, false);
+
+        // Thin grey rule between rows — skip after the last so the trailing
+        // edge stays clean.
+        if i + 1 < total {
+            layout.hr();
+        }
         layout.gap(4.5);
     }
+
+    // Footer disclaimer — small italic-style note, centered.
+    layout.gap(4.0);
+    layout.hr();
+    layout.gap(3.0);
+    layout.text_centered(
+        "Reference only. Always verify with current IRS guidance and a qualified tax professional.",
+        7.5,
+        false,
+    );
+    layout.text_centered(
+        "Sources: uscode.house.gov · ecfr.gov · irs.gov",
+        7.5,
+        false,
+    );
 
     let pages = layout.finish();
     let bytes = doc

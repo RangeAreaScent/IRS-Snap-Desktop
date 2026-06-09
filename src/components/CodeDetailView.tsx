@@ -17,6 +17,8 @@ interface Props {
   onSelect: (compositeKey: string) => void;
   /** Active search query — body matches are highlighted when non-empty. */
   highlightQuery?: string;
+  /** When set, render a back button (narrow window overlay mode). */
+  onClose?: () => void;
 }
 
 type Loaded =
@@ -24,7 +26,7 @@ type Loaded =
   | { kind: "form";      data: FormDetail }
   | { kind: "pub";       data: PubDetail };
 
-export function CodeDetailView({ compositeKey, onSelect, highlightQuery = "" }: Props) {
+export function CodeDetailView({ compositeKey, onSelect, highlightQuery = "", onClose }: Props) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,15 +76,14 @@ export function CodeDetailView({ compositeKey, onSelect, highlightQuery = "" }: 
   }
 
   if (!compositeKey) {
-    return (
-      <div className="detail-pane detail-pane--empty">
-        <p>Select an item to see its details.</p>
-      </div>
-    );
+    return <EmptyDetail />;
   }
   if (loading) {
     return (
       <div className="detail-pane detail-pane--empty">
+        {onClose && (
+          <button className="detail-back" onClick={onClose}>‹ Back</button>
+        )}
         <p>Loading…</p>
       </div>
     );
@@ -90,6 +91,9 @@ export function CodeDetailView({ compositeKey, onSelect, highlightQuery = "" }: 
   if (error || !loaded) {
     return (
       <div className="detail-pane detail-pane--empty">
+        {onClose && (
+          <button className="detail-back" onClick={onClose}>‹ Back</button>
+        )}
         <p>{error ?? "Not found."}</p>
       </div>
     );
@@ -210,6 +214,14 @@ export function CodeDetailView({ compositeKey, onSelect, highlightQuery = "" }: 
 
   return (
     <>
+      {onClose && (
+        <button
+          className="detail-back detail-back--floating"
+          onClick={onClose}
+        >
+          ‹ Back
+        </button>
+      )}
       {view}
       {adding && loaded && (
         <AddToCollectionModal
@@ -219,6 +231,50 @@ export function CodeDetailView({ compositeKey, onSelect, highlightQuery = "" }: 
       )}
     </>
   );
+}
+
+// ───────────────────────── Empty state with shortcut guide ─────────────────────────
+
+function EmptyDetail() {
+  const mod = isMac() ? "⌘" : "Ctrl";
+  return (
+    <div className="detail-pane detail-pane--empty">
+      <div className="detail-empty">
+        <div className="detail-empty__title">Select an item</div>
+        <div className="detail-empty__hint">
+          Pick a result on the left, or use the keyboard.
+        </div>
+        <dl className="detail-empty__keys">
+          <dt><kbd>↑</kbd><kbd>↓</kbd></dt>
+          <dd>Move between rows</dd>
+          <dt><kbd>{mod}</kbd><kbd>F</kbd></dt>
+          <dd>Focus the search box</dd>
+          <dt><kbd>{mod}</kbd><kbd>K</kbd></dt>
+          <dd>Open the command palette</dd>
+          <dt><kbd>{mod}</kbd><kbd>C</kbd></dt>
+          <dd>Copy the selected citation</dd>
+          <dt><kbd>{mod}</kbd><kbd>D</kbd></dt>
+          <dd>Toggle favorite</dd>
+          <dt><kbd>{mod}</kbd><kbd>E</kbd></dt>
+          <dd>Export the open collection</dd>
+          <dt><kbd>{mod}</kbd><kbd>1</kbd>…<kbd>4</kbd></dt>
+          <dd>Jump to a tab</dd>
+          <dt><kbd>{mod}</kbd><kbd>,</kbd></dt>
+          <dd>Open Settings</dd>
+          <dt><kbd>Esc</kbd></dt>
+          <dd>Back to the list / search</dd>
+          <dt><kbd>←</kbd></dt>
+          <dd>Back to the list (narrow window)</dd>
+        </dl>
+      </div>
+    </div>
+  );
+}
+
+function isMac(): boolean {
+  if (typeof navigator === "undefined") return true;
+  const plat = (navigator.platform || "") + " " + (navigator.userAgent || "");
+  return /Mac|iPhone|iPad/.test(plat);
 }
 
 // ───────────────────────── Layouts ─────────────────────────
